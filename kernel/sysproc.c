@@ -91,3 +91,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// return how many clock tick interrupts have occurred
+// since start.
+uint64
+sys_trace(void)
+{
+  int n;
+  argint(0, &n);
+  struct proc* p = myproc();
+  p->mask |= n;
+  return 0; 
+}
