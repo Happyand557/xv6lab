@@ -75,6 +75,32 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  uint32 mask = 0;
+  uint64 vabegin;
+  uint64 vamask;
+  int npages;
+  argint(1, &npages);
+  argaddr(0, &vabegin);
+  argaddr(2, &vamask);
+  struct proc* p = myproc();
+  pagetable_t pagetable = p->pagetable;
+  uint64 va = PGROUNDDOWN(vabegin);
+  uint64 pteptr = 0;
+  for(int i = 0; i < npages; i++) {
+    if((pteptr = (uint64)walk(pagetable, va, 0)) == 0 && (*(pte_t *)(pteptr) & PTE_V) == 0) {
+      printf("virture address is not mapped\n");
+      return -1;
+    }
+    if((*(pte_t *)(pteptr) & PTE_A) != 0) {
+      mask |= 1 << i;
+      *(pte_t *)(pteptr) &= ~(uint64)(PTE_A);
+    }
+    va = va + PGSIZE;
+  }
+  if(copyout(p->pagetable, vamask, (char*)&mask, sizeof(mask)) < 0) {
+    return -1;
+    printf("virture address has no pa\n");
+  }
   return 0;
 }
 #endif
