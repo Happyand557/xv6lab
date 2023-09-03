@@ -81,6 +81,13 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// sigreturn trap
+struct usertrap {
+  struct trapframe tf;
+  /* 288 */ uint64 ticks; // handle can not resume handle
+  /* 296 */ uint64 handler; // restore handle
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -104,4 +111,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int ticks;                   // iterval of sigalarm
+  uint64 handler;           // sigalarm syscall user handler
+  int curticks;                // current used ticks set to zero every iterval
+  struct usertrap usertrap;
+  
 };

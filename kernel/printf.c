@@ -133,3 +133,21 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+// be carefull trampoline call usertrap use jr which don't set ra and pfp
+// therefore in usertrap there is no stack frame
+// last fp will out of range
+void backtrace() {
+  uint64 fp = r_fp();
+  uint64 pfp;
+  uint64 page = PGROUNDDOWN(fp);
+  while(1) {
+    pfp = (uint64)(*(uint64*)(fp - 16));
+    if(PGROUNDDOWN(pfp) == page) 
+      printf("%p\n", *(uint64*)(fp - 8));
+    else {
+      printf("%p\n",*(uint64*)(fp - 8));
+      break;
+    }
+    fp = pfp;
+  }
+}
