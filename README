@@ -1,1 +1,2 @@
 ### finish trap
+strncpy 不能用于trapframe 和 usertrap的复制，会因为'\0'截断
