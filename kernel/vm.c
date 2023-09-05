@@ -10,6 +10,9 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
+                   
+int user_pageref[PHYSTOP>>12];
+uchar cow_page_w[PHYSTOP>>12];
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
@@ -308,7 +311,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  //char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -317,11 +320,21 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
+    /*
     if((mem = kalloc()) == 0)
       goto err;
     memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    */
+   // set read only
+    if(!cow_page_w[pa>>12] && (flags & PTE_W) == 0) {
+      cow_page_w[pa>>12] = 0;
+    } else {
+      cow_page_w[pa>>12] = 1;
+    }
+    *pte &= (~PTE_W); // parent vm table should also set to readonly
+    user_pageref[pa>>12]++;
+    if(mappages(new, i, PGSIZE, (uint64)pa, (flags & (~PTE_W))) != 0){
+      kfree((void*)pa);
       goto err;
     }
   }
@@ -361,6 +374,25 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
+    pte_t *pte = walk(pagetable, va0, 0);
+    int flags = PTE_FLAGS(*pte);
+    void *mem;
+    if(cow_page_w[pa0>>12] == 1) {
+      if(user_pageref[pa0>>12] < 1) {
+          panic("pa:user page ref < 1");
+        } else if(user_pageref[pa0>>12] == 1) {
+          *pte |= PTE_W;
+          cow_page_w[pa0>>12] = 0;// from now all process from a fork allocate a page
+        } else {
+          if((mem = kalloc()) == 0) {
+            panic("alloc physical mem error\n");
+          }
+          memmove(mem, (char*)pa0, PGSIZE);
+          uvmunmap(pagetable, va0, 1, 1);
+          mappages(pagetable, va0, PGSIZE, (uint64)mem, flags | PTE_W);
+          pa0 = (uint64)mem;
+        }
+    }
     memmove((void *)(pa0 + (dstva - va0)), src, n);
 
     len -= n;

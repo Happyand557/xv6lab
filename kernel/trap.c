@@ -9,6 +9,8 @@
 struct spinlock tickslock;
 uint ticks;
 
+extern int user_pageref[];
+extern uchar cow_page_w[];
 extern char trampoline[], uservec[], userret[];
 
 // in kernelvec.S, calls kerneltrap().
@@ -67,7 +69,38 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } else if(r_scause() == 15 && r_stval() >= MAXVA) {
+    setkilled(p);
+  } 
+  else if(r_scause() == 15) {
+    // store page fault
+    uint64 va = PGROUNDDOWN(r_stval());
+    pte_t *pte = walk(p->pagetable, va, 0);
+    uint64 pa = PTE2PA(*pte);
+    int flags = PTE_FLAGS(*pte);
+    void* mem;
+    if(cow_page_w[pa>>12] == 0) {
+      printf("can not store readonly page\n");
+      setkilled(p);
+    } else {
+      if(user_pageref[pa>>12] < 1) {
+        panic("pa:user page ref < 1");
+      } else if(user_pageref[pa>>12] == 1) {
+        *pte |= PTE_W;
+        cow_page_w[pa>>12] = 0;// from now all process from a fork allocate a page
+      } else {
+        if((mem = kalloc()) == 0) {
+          printf("alloc physical mem error\n");
+          setkilled(p); // kill process when thereis no empty space for cow
+        } else{
+        memmove(mem, (char*)pa, PGSIZE);
+        uvmunmap(p->pagetable, va, 1, 1); // do_free will cause userpageref--
+        mappages(p->pagetable, va, PGSIZE, (uint64)mem, flags | PTE_W);
+        }
+      }
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);
