@@ -29,3 +29,5 @@ void P(struct semaphore *s)
 1. 注意赋值sp寄存器时要从栈的高地址赋值
 2. 注意ph fast的要求需要设置细粒度的锁来减少数据冲突
 3. barrier中使用条件变量，条件满足时恢复bstat的状态
+### todo
+实现1对1或者1对多的系统线程
