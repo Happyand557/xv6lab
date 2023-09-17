@@ -1,2 +1,4 @@
 ### 优化kmem.lock
 1. qemu出现触发xv6异常的bug，并且一旦加入打印语句异常消失，但是make clean后无法重现,后续随机会出现，猜测可能是cpu指令重排有关系，我在异常处打印发现仍有空闲的物理块，不可能出现sbrk为-1的情况。
+### buffer cache
+1. 在修改bcache后，系统的console无法正常mknode生成，追踪后发现可能是log的问题，但是待定，再本地机器后bug消失可能是docker或者是ubuntu的问题，需要再查看log实现确定。
